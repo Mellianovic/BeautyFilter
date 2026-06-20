@@ -1,0 +1,154 @@
+:root {
+  color-scheme: dark;
+  --bg: #05070a;
+  --text: #d7e3e8;
+  --muted: rgba(215, 227, 232, 0.62);
+  --line: rgba(160, 198, 214, 0.18);
+  --glass: rgba(130, 165, 182, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.installation {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(92, 126, 138, 0.16), transparent 34%),
+    linear-gradient(180deg, #030406 0%, #080d10 48%, #020304 100%);
+}
+
+#video {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#mirror {
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  background: #020304;
+}
+
+.start-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-content: center;
+  gap: 16px;
+  padding: 28px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(105, 139, 152, 0.22), transparent 30%),
+    rgba(3, 5, 7, 0.74);
+  transition: opacity 420ms ease, visibility 420ms ease;
+}
+
+.start-panel.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.start-button {
+  min-width: 220px;
+  min-height: 48px;
+  border: 1px solid rgba(204, 228, 238, 0.34);
+  border-radius: 4px;
+  padding: 0 22px;
+  color: var(--text);
+  background: rgba(115, 145, 158, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 18px 70px rgba(0, 0, 0, 0.38);
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: 0;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+}
+
+.start-button:hover,
+.start-button:focus-visible {
+  border-color: rgba(226, 244, 249, 0.72);
+  background: rgba(130, 169, 184, 0.24);
+  outline: none;
+}
+
+.start-note,
+.status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.status {
+  position: absolute;
+  left: 24px;
+  bottom: 20px;
+  z-index: 3;
+  max-width: min(420px, calc(100vw - 48px));
+  opacity: 0.72;
+}
+
+.scanline,
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.scanline {
+  z-index: 2;
+  opacity: 0.16;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(226, 244, 249, 0.16) 0,
+    rgba(226, 244, 249, 0.16) 1px,
+    transparent 1px,
+    transparent 5px
+  );
+  mix-blend-mode: screen;
+}
+
+.vignette {
+  z-index: 2;
+  background:
+    radial-gradient(circle at 50% 48%, transparent 36%, rgba(0, 0, 0, 0.12) 58%, rgba(0, 0, 0, 0.76) 100%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.58), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.58));
+}
+
+@media (max-width: 640px) {
+  .status {
+    left: 16px;
+    bottom: 16px;
+  }
+
+  .start-button {
+    min-width: 190px;
+  }
+}

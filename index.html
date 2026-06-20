@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Liquid Mirror</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="installation" aria-label="Interaktive Webcam-Installation">
+      <video id="video" playsinline muted></video>
+      <canvas id="mirror"></canvas>
+
+      <div id="startPanel" class="start-panel">
+        <button id="startButton" class="start-button" type="button">
+          Installation starten
+        </button>
+        <p class="start-note">Kamera erlauben, dann in den Bildschirm blicken.</p>
+      </div>
+
+      <div id="status" class="status" aria-live="polite">Bereit</div>
+      <div class="scanline" aria-hidden="true"></div>
+      <div class="vignette" aria-hidden="true"></div>
+    </main>
+
+    <script src="vendor/mediapipe-face-mesh/face_mesh.js?v=local-window-context"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
