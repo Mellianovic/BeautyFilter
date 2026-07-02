@@ -8,10 +8,10 @@ const statusEl = document.querySelector("#status");
 const LOOP_MS = 22000;
 const TRACKING_INTERVAL_MS = 34;
 const SILICONE = {
-  fill: "rgba(118, 153, 170, 0.56)",
-  edge: "rgba(206, 231, 238, 0.36)",
-  shadow: "rgba(38, 63, 76, 0.34)",
-  shine: "rgba(238, 250, 255, 0.56)",
+  fill: "rgba(157, 190, 207, 0.48)",
+  edge: "rgba(198, 231, 243, 0.72)",
+  shadow: "rgba(51, 93, 115, 0.3)",
+  shine: "rgba(247, 253, 255, 0.84)",
 };
 
 let faceMesh;
@@ -98,6 +98,41 @@ function facePath(points) {
     else ctx.lineTo(point.x, point.y);
   });
   ctx.closePath();
+}
+
+function addLandmarkLoop(points, indices, scale = 1) {
+  const mapped = indices.map((index) => landmarkPoint(points[index]));
+  const center = mapped.reduce(
+    (sum, point) => ({ x: sum.x + point.x / mapped.length, y: sum.y + point.y / mapped.length }),
+    { x: 0, y: 0 },
+  );
+
+  mapped.forEach((source, i) => {
+    const point = {
+      x: center.x + (source.x - center.x) * scale,
+      y: center.y + (source.y - center.y) * scale,
+    };
+    if (i === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  });
+  ctx.closePath();
+}
+
+function siliconeMaskPath(points, featureOpening = 1, shellScale = 1) {
+  const oval = [
+    10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378,
+    400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21,
+    54, 103, 67, 109,
+  ];
+  const leftEye = [33, 160, 158, 133, 153, 144];
+  const rightEye = [362, 385, 387, 263, 373, 380];
+  const mouth = [61, 185, 40, 39, 0, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181];
+
+  ctx.beginPath();
+  addLandmarkLoop(points, oval, shellScale);
+  addLandmarkLoop(points, leftEye, featureOpening);
+  addLandmarkLoop(points, rightEye, featureOpening);
+  addLandmarkLoop(points, mouth, featureOpening);
 }
 
 function getFaceBounds(points) {
@@ -221,20 +256,40 @@ function drawSiliconeMask(points, formAmount, meltAmount, fadeAmount, time) {
   const forehead = landmarkPoint(points[10]);
   const chin = landmarkPoint(points[152]);
   const centerX = (leftCheek.x + rightCheek.x) * 0.5;
-  const maskAlpha = formAmount * (1 - fadeAmount);
+  const thickness = smoothstep(0.04, 0.96, formAmount);
+  const maskAlpha = thickness * (1 - fadeAmount);
+  const featureOpening = mix(1, 0.035, smoothstep(0.18, 0.9, thickness));
+  const shellScale = mix(1.005, 1.035, thickness);
   const dropDistance = meltAmount * (bounds.maxY - bounds.minY) * 0.95;
 
+  drawHomogenizedFace(points, bounds, thickness, fadeAmount);
+
   ctx.save();
-  facePath(points);
-  ctx.clip();
+  siliconeMaskPath(points, featureOpening, shellScale);
+  ctx.clip("evenodd");
   ctx.globalAlpha = maskAlpha;
 
   const gradient = ctx.createLinearGradient(0, forehead.y, 0, chin.y + dropDistance);
-  gradient.addColorStop(0, "rgba(178, 209, 220, 0.52)");
+  gradient.addColorStop(0, "rgba(194, 220, 231, 0.58)");
   gradient.addColorStop(0.34, SILICONE.fill);
-  gradient.addColorStop(0.72, "rgba(73, 106, 124, 0.58)");
-  gradient.addColorStop(1, "rgba(28, 49, 62, 0.44)");
+  gradient.addColorStop(0.72, "rgba(126, 169, 190, 0.5)");
+  gradient.addColorStop(1, "rgba(101, 148, 173, 0.42)");
   ctx.fillStyle = gradient;
+  ctx.fillRect(bounds.minX - 30, bounds.minY - 30, bounds.maxX - bounds.minX + 60, bounds.maxY - bounds.minY + 70);
+
+  // Translucent volume: a cool center and slightly denser gel around the face rim.
+  const volume = ctx.createRadialGradient(
+    centerX,
+    forehead.y + (chin.y - forehead.y) * 0.42,
+    0,
+    centerX,
+    forehead.y + (chin.y - forehead.y) * 0.46,
+    Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.62,
+  );
+  volume.addColorStop(0, "rgba(225, 241, 247, 0.2)");
+  volume.addColorStop(0.58, "rgba(150, 190, 209, 0.12)");
+  volume.addColorStop(1, "rgba(68, 119, 146, 0.32)");
+  ctx.fillStyle = volume;
   ctx.fillRect(bounds.minX - 30, bounds.minY - 30, bounds.maxX - bounds.minX + 60, bounds.maxY - bounds.minY + 70);
 
   ctx.globalCompositeOperation = "screen";
@@ -242,24 +297,64 @@ function drawSiliconeMask(points, formAmount, meltAmount, fadeAmount, time) {
   ctx.globalCompositeOperation = "source-over";
   ctx.restore();
 
-  drawSiliconeEdge(points, maskAlpha);
+  drawSiliconeEdge(points, maskAlpha, featureOpening, shellScale);
   drawDrips(points, maskAlpha, meltAmount, time, dropDistance);
 }
 
+function drawHomogenizedFace(points, bounds, thickness, fadeAmount) {
+  if (thickness <= 0.01) return;
+
+  const faceW = bounds.maxX - bounds.minX;
+  const faceH = bounds.maxY - bounds.minY;
+  const blur = mix(2, 24, thickness);
+
+  tempCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+  tempCtx.filter = `blur(${blur}px) saturate(${mix(1, 0.62, thickness)}) contrast(${mix(1, 0.82, thickness)})`;
+  drawMirroredVideo(tempCtx);
+  tempCtx.filter = "none";
+
+  ctx.save();
+  facePath(points);
+  ctx.clip();
+  ctx.globalAlpha = smoothstep(0.08, 0.9, thickness) * 0.72 * (1 - fadeAmount);
+  ctx.drawImage(
+    tempCanvas,
+    bounds.minX - faceW * 0.08,
+    bounds.minY - faceH * 0.06,
+    faceW * 1.16,
+    faceH * 1.12,
+    bounds.minX - faceW * 0.04,
+    bounds.minY - faceH * 0.03,
+    faceW * 1.08,
+    faceH * 1.06,
+  );
+
+  // A milky veil progressively suppresses individual skin and feature contrast.
+  ctx.globalAlpha = smoothstep(0.24, 1, thickness) * 0.22 * (1 - fadeAmount);
+  ctx.fillStyle = "rgb(178, 207, 220)";
+  ctx.fillRect(bounds.minX, bounds.minY, faceW, faceH);
+  ctx.restore();
+}
+
 function drawGloss(points, alpha, meltAmount, time) {
-  const a = alpha * (0.75 - meltAmount * 0.24);
+  const a = alpha * (0.94 - meltAmount * 0.2);
   const strokes = [
-    [127, 168, 197, 5],
-    [356, 417, 427, 6],
-    [10, 151, 9, 4],
-    [58, 172, 136, 5],
+    [109, 10, 338, 10],
+    [127, 168, 197, 9],
+    [356, 417, 427, 10],
+    [6, 197, 5, 7],
+    [58, 172, 136, 8],
+    [288, 397, 365, 7],
+    [152, 148, 176, 9],
   ];
 
   ctx.lineCap = "round";
   strokes.forEach((stroke, i) => {
     const shimmer = 0.72 + Math.sin(time * 0.0017 + i * 1.8) * 0.2;
-    ctx.strokeStyle = `rgba(239, 251, 255, ${a * shimmer})`;
+    ctx.strokeStyle = `rgba(247, 253, 255, ${a * shimmer})`;
     ctx.lineWidth = stroke[3] * (canvasWidth / 1440);
+    ctx.shadowColor = SILICONE.shine;
+    ctx.shadowBlur = stroke[3] * 1.8;
     ctx.beginPath();
     stroke.slice(0, 3).forEach((index, pointIndex) => {
       const point = landmarkPoint(points[index]);
@@ -268,16 +363,31 @@ function drawGloss(points, alpha, meltAmount, time) {
     });
     ctx.stroke();
   });
+
+  const forehead = landmarkPoint(points[10]);
+  const nose = landmarkPoint(points[4]);
+  const cheek = landmarkPoint(points[50]);
+  const softSpots = [
+    [forehead.x - 18, forehead.y + 54, 32, 18],
+    [nose.x - 9, nose.y - 38, 10, 52],
+    [cheek.x, cheek.y, 25, 16],
+  ];
+  softSpots.forEach(([x, y, rx, ry], i) => {
+    ctx.fillStyle = `rgba(250, 254, 255, ${a * (0.16 + i * 0.03)})`;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx * (canvasWidth / 1440), ry * (canvasWidth / 1440), -0.25, 0, Math.PI * 2);
+    ctx.fill();
+  });
 }
 
-function drawSiliconeEdge(points, alpha) {
+function drawSiliconeEdge(points, alpha, featureOpening, shellScale) {
   ctx.save();
   ctx.globalAlpha = alpha;
-  facePath(points);
+  siliconeMaskPath(points, featureOpening, shellScale);
   ctx.strokeStyle = SILICONE.edge;
-  ctx.lineWidth = Math.max(1.2, canvasWidth / 900);
+  ctx.lineWidth = Math.max(1.5, canvasWidth / 720);
   ctx.shadowColor = SILICONE.shadow;
-  ctx.shadowBlur = 18;
+  ctx.shadowBlur = 14;
   ctx.stroke();
   ctx.restore();
 }
@@ -303,8 +413,9 @@ function drawDrips(points, alpha, meltAmount, time, dropDistance) {
     if (length < 2) return;
 
     const grad = ctx.createLinearGradient(p.x, p.y, p.x + xDrift, p.y + length);
-    grad.addColorStop(0, "rgba(156, 190, 205, 0.64)");
-    grad.addColorStop(1, "rgba(78, 112, 130, 0.18)");
+    grad.addColorStop(0, "rgba(181, 214, 227, 0.72)");
+    grad.addColorStop(0.65, "rgba(131, 176, 198, 0.52)");
+    grad.addColorStop(1, "rgba(102, 151, 177, 0.24)");
     ctx.strokeStyle = grad;
     ctx.lineWidth = width;
     ctx.beginPath();
@@ -319,7 +430,7 @@ function drawDrips(points, alpha, meltAmount, time, dropDistance) {
     );
     ctx.stroke();
 
-    ctx.fillStyle = "rgba(184, 215, 226, 0.34)";
+    ctx.fillStyle = "rgba(205, 232, 241, 0.48)";
     ctx.beginPath();
     ctx.ellipse(p.x + xDrift, p.y + length, width * 0.48, width * 0.72, 0, 0, Math.PI * 2);
     ctx.fill();
